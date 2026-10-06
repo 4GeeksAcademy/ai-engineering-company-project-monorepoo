@@ -27,3 +27,7 @@
 ## Next Steps
 1. Capture screenshots for PR evidence (`uis/website` and `uis/backoffice`).
 2. Open PR from `milestone-4` to `main` with AGENTS.md link and validation summary.
+
+## Backend API Update
+- Added explicit Pydantic response serialization for `GET /health` and documented the API surface in `docs/serialization-audit.md`.
+- Next: add domain routers and shared API contracts as backend requirements are defined.

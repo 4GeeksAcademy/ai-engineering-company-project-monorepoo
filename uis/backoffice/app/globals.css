@@ -131,6 +131,42 @@ body {
   gap: 0.35rem;
 }
 
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.view-tabs button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-tabs button[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
+}
+
+.view-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.management-view {
+  min-height: 10rem;
+  overflow-wrap: anywhere;
+}
+
+.management-view h3 {
+  margin-bottom: 0.6rem;
+}
+
 .note {
   margin-top: 0.8rem;
   color: #4a5978;

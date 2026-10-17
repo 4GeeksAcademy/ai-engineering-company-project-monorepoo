@@ -1,7 +1,5 @@
-import {
-  buildBrasalandSnapshot,
-  type BrasalandBusinessInput,
-} from "@repo/shared-types";
+import type { BrasalandBusinessInput } from "@repo/shared-types";
+import Dashboard from "@/components/Dashboard";
 
 const sampleInput: BrasalandBusinessInput = {
   weekLabel: "Semana 31 - 2026",
@@ -79,78 +77,5 @@ const sampleInput: BrasalandBusinessInput = {
 };
 
 export default function Home() {
-  const snapshot = buildBrasalandSnapshot(sampleInput);
-
-  return (
-    <div className="backoffice-shell">
-      <aside className="sidebar">
-        <p className="chip">Backoffice</p>
-        <h1>Brasaland Control Center</h1>
-        <p>Vista de entrada para operaciones, compras y direccion ejecutiva.</p>
-      </aside>
-
-      <main className="main-panel">
-        <section className="panel">
-          <h2>Resumen semanal ({snapshot.weekLabel})</h2>
-          <div className="grid two">
-            {snapshot.marketSummary.map((market) => (
-              <article key={market.country} className="metric">
-                <p>
-                  {market.country === "CO" ? "Colombia" : "Florida"} · {market.currency}
-                </p>
-                <strong>
-                  {market.revenue.toLocaleString("es-CO", {
-                    maximumFractionDigits: 2,
-                  })}
-                </strong>
-                <span>
-                  {market.orders} pedidos · ticket prom. {market.averageTicket.toLocaleString("es-CO")}
-                </span>
-              </article>
-            ))}
-          </div>
-          {snapshot.topTicketStore ? (
-            <p className="note">
-              Ticket mas alto del periodo: {snapshot.topTicketStore.storeName} ({" "}
-              {snapshot.topTicketStore.averageTicket.toLocaleString("es-CO")} {" "}
-              {snapshot.topTicketStore.currency})
-            </p>
-          ) : null}
-        </section>
-
-        <section className="panel">
-          <h2>Alertas operativas y de gestion</h2>
-          <div className="grid three">
-            <article>
-              <h3>Stock</h3>
-              <ul>
-                {snapshot.stockRiskAlerts.map((alert) => (
-                  <li key={alert}>{alert}</li>
-                ))}
-              </ul>
-            </article>
-            <article>
-              <h3>Proveedores</h3>
-              <ul>
-                {snapshot.supplierAlerts.map((alert) => (
-                  <li key={alert}>{alert}</li>
-                ))}
-              </ul>
-            </article>
-            <article>
-              <h3>RRHH</h3>
-              <ul>
-                {snapshot.hrAlerts.map((alert) => (
-                  <li key={alert}>{alert}</li>
-                ))}
-              </ul>
-            </article>
-          </div>
-          <p className="note">
-            Modulo importado desde el monorepo: packages/shared/types/index.ts
-          </p>
-        </section>
-      </main>
-    </div>
-  );
+  return <Dashboard input={sampleInput} />;
 }

@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+.venv/
+uis/backoffice/test-results/
+uis/backoffice/playwright-report/

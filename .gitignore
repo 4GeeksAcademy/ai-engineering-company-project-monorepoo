@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
 .venv/
+services/catalog-api/var/
 uis/backoffice/test-results/
 uis/backoffice/playwright-report/

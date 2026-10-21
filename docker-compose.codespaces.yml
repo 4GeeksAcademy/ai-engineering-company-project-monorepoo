@@ -1,0 +1,19 @@
+services:
+  redis:
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:5555:5555"
+  api:
+    network_mode: service:redis
+    ports: !reset []
+    environment:
+      REDIS_URL: redis://localhost:6379/0
+  worker:
+    network_mode: service:redis
+    environment:
+      REDIS_URL: redis://localhost:6379/0
+  flower:
+    network_mode: service:redis
+    ports: !reset []
+    environment:
+      REDIS_URL: redis://localhost:6379/0

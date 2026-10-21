@@ -9,6 +9,39 @@ _Estas instrucciones tambien estan disponibles en [espanol](./README.es.md)._
 
 ---
 
+## DEV-55: Redis, Celery and Flower
+
+From the monorepo root:
+
+```sh
+export CATALOG_ADMIN_TOKEN=$(openssl rand -hex 24)
+docker compose up --build -d --wait
+docker compose logs -f worker
+docker compose stop worker
+docker compose start worker
+docker compose down
+```
+
+API: http://localhost:8000/docs. Flower: http://localhost:5555.
+`down` preserves Redis and SQLite volumes; do not use `down -v` unless intentionally deleting demo data.
+For this Codespaces environment, first set
+`export COMPOSE_FILE=docker-compose.yml:docker-compose.codespaces.yml`
+to bypass its blocked container-to-container bridge traffic.
+
+Outside Docker, run the worker as a separate process:
+
+```sh
+cd services/catalog-api
+export PYTHONPATH="$PWD" REDIS_URL=redis://localhost:6379/0
+python -m celery -A celery_app:celery_app worker --loglevel=INFO --concurrency=2 --events
+```
+
+Stop it with Ctrl+C (warm shutdown). See the [service guide](services/catalog-api/README.md)
+for shared database configuration, authorized import requests and tests, and the
+[DEV-55 report](docs/DEV-55.md) for decisions, retry semantics and verification evidence.
+
+---
+
 ## Purpose
 
 This repository is the **starter template** for transversal projects. You will work on real company scenarios (Brasaland, TrackFlow, Nexova), building deliverables that map to course milestones (Web, Programming, Backend, Telemetry, RAG, Agents, Workflows, Real-time).

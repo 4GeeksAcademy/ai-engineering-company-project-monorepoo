@@ -22,7 +22,7 @@
   - `uis/website`: `npm run build` OK after Hito 1 alignment.
 
 ## In Progress
-- DEV-55 implementation, real Flower screenshot and live verification complete; publication authorized and next in delivery flow.
+- None; DEV-55 implementation, evidence and live verification are complete and published for review.
 
 ## DEV-55 Implemented and Verified
 - User approved adding asynchronous menu batch imports instead of breaking existing catalog GET contracts; no heavy existing pipeline exists in this demo.
@@ -36,6 +36,7 @@
 - Flower accessible on localhost:5555; service/root READMEs and docs/DEV-55.md document startup/shutdown, evidence and production limitations.
 - User authorized commit, push to origin (4GeeksAcademy/ai-engineering-company-project-monorepoo), and PR to main with async-tasks label.
 - Evidence: docs/dev55-flower.png shows SUCCESS and FAILURE for the task also present in SQLite DLQ; docs/DEV-55.md includes exact retry log excerpt.
+- Published implementation commit 78c3388 to the existing branch on origin. PR #4 targets main: https://github.com/4GeeksAcademy/ai-engineering-company-project-monorepoo/pull/4.
 
 ## Caching Exercise Completed
 - Created branch `feature/caching-optimisation` from the existing clean working branch.
@@ -51,6 +52,6 @@
 - User explicitly approved committing, pushing to origin and opening a PR to main.
 
 ## Next Steps
-1. Review the caching delivery PR to main with AGENTS.md and validation evidence before merging.
+1. Review DEV-55 PR #4 to main, including approved scope adaptation, retry-count semantics and verification evidence before merging.
 2. Connect real persistent public catalog data, measure request frequency/change rates and recalibrate TTL before production.
 3. Add production authentication and coordinated invalidation before introducing private data or multiple workers.

@@ -1,0 +1,54 @@
+x-catalog: &catalog
+  build: ./services/catalog-api
+  image: brasaland-catalog:dev
+  environment: &environment
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    CATALOG_DB_PATH: /var/lib/catalog/catalog.sqlite3
+  volumes:
+    - catalog-data:/var/lib/catalog
+  depends_on:
+    redis:
+      condition: service_healthy
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    <<: *catalog
+    environment:
+      <<: *environment
+      CATALOG_ADMIN_TOKEN: ${CATALOG_ADMIN_TOKEN:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  worker:
+    <<: *catalog
+    command: ["celery", "-A", "celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=2", "--events"]
+    stop_grace_period: 75s
+
+  flower:
+    <<: *catalog
+    command: ["celery", "-A", "celery_app:celery_app", "flower", "--port=5555", "--persistent=True", "--db=/var/lib/catalog/flower"]
+    ports:
+      - "127.0.0.1:5555:5555"
+
+volumes:
+  redis-data:
+  catalog-data:

@@ -22,7 +22,21 @@
   - `uis/website`: `npm run build` OK after Hito 1 alignment.
 
 ## In Progress
-- None; caching implementation and validation are complete.
+- None; DEV-55 implementation, evidence and live verification are complete and published for review.
+
+## DEV-55 Implemented and Verified
+- User approved adding asynchronous menu batch imports instead of breaking existing catalog GET contracts; no heavy existing pipeline exists in this demo.
+- Added shared SQLite catalog/batch storage, atomic idempotent updates, persistent DLQ, and cross-process cache invalidation.
+- Celery queues only the batch UUID, tracks started state, logs attempt/status/error/duration, retries at 2/4/8s, and stores terminal failure after initial attempt + 3 retries.
+- Added authenticated POST /menu/imports (202), GET /tasks/{UUID}, GET /tasks/dead-letter; worker never runs inside FastAPI.
+- Root Compose includes official Redis AOF/noeviction, independent worker, API and Flower. No protected paths modified.
+- User approved optional Codespaces Compose override after bridge TCP failures; shared network namespace preserves separate processes.
+- 22 unit tests pass. Real demo: 1000 rows accepted in 58.207ms; message contains only UUID; pending, STARTED/SUCCESS events and HTTP success/failure verified.
+- Worker completed the batch with API stopped; failing task c0ce9c02-ab07-46db-b134-52673b9ae7da reached SQLite DLQ at attempt 4 with error and UTC timestamp.
+- Flower accessible on localhost:5555; service/root READMEs and docs/DEV-55.md document startup/shutdown, evidence and production limitations.
+- User authorized commit, push to origin (4GeeksAcademy/ai-engineering-company-project-monorepoo), and PR to main with async-tasks label.
+- Evidence: docs/dev55-flower.png shows SUCCESS and FAILURE for the task also present in SQLite DLQ; docs/DEV-55.md includes exact retry log excerpt.
+- Published implementation commit 78c3388 to the existing branch on origin. PR #4 targets main: https://github.com/4GeeksAcademy/ai-engineering-company-project-monorepoo/pull/4.
 
 ## Caching Exercise Completed
 - Created branch `feature/caching-optimisation` from the existing clean working branch.
@@ -38,6 +52,6 @@
 - User explicitly approved committing, pushing to origin and opening a PR to main.
 
 ## Next Steps
-1. Review the caching delivery PR to main with AGENTS.md and validation evidence before merging.
+1. Review DEV-55 PR #4 to main, including approved scope adaptation, retry-count semantics and verification evidence before merging.
 2. Connect real persistent public catalog data, measure request frequency/change rates and recalibrate TTL before production.
 3. Add production authentication and coordinated invalidation before introducing private data or multiple workers.

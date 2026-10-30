@@ -1,8 +1,15 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from unittest.mock import patch
+from types import SimpleNamespace
+from uuid import uuid4
+
+from celery.exceptions import Retry
+from kombu.exceptions import OperationalError
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +18,11 @@ import main
 
 class CatalogTests(unittest.TestCase):
     def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        database_env = patch.dict(os.environ, {"CATALOG_DB_PATH": str(Path(temporary.name) / "catalog.sqlite3")})
+        database_env.start()
+        self.addCleanup(database_env.stop)
         self.now = 1000.0
         self.catalog = main.PublicCatalog(clock=lambda: self.now)
         self.catalog_patch = patch.object(main, "catalog", self.catalog)
@@ -135,6 +147,102 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("GET /menu -> 200", logs.output[0])
         self.assertNotIn("private-query", logs.output[0])
         self.assertNotIn("test-only-token", logs.output[0])
+
+    def test_another_process_write_invalidates_cached_family(self):
+        self.client.get("/menu")
+        self.client.get("/locations")
+        another_catalog = main.PublicCatalog()
+        another_catalog.update("menu", "demo-co",
+                               {"name": "Worker update", "country": "CO", "price": 12, "available": True})
+        response = self.client.get("/menu")
+        self.assertEqual(response.headers["X-Cache"], "MISS")
+        self.assertTrue(any(row["name"] == "Worker update" for row in response.json()))
+        self.assertEqual(self.client.get("/locations").headers["X-Cache"], "HIT")
+
+    def enqueue(self):
+        payload = {"items": [{"id": "demo-co", "name": "Imported", "country": "CO", "price": 19}]}
+        with patch.object(main.import_menu, "apply_async") as publish:
+            response = self.client.post("/menu/imports", headers=self.auth, json=payload)
+        self.assertEqual(response.status_code, 202)
+        task_id = response.json()["task_id"]
+        self.assertEqual(publish.call_args.kwargs, {"args": [task_id], "task_id": task_id, "retry": False})
+        self.assertEqual(response.headers["Location"], f"/tasks/{task_id}")
+        self.assertEqual(main.storage.get_batch(task_id)["payload"]["items"][0]["name"], "Imported")
+        self.assertFalse(any(row["name"] == "Imported" for row in self.catalog.menu))
+        return task_id
+
+    def test_enqueue_only_publishes_reference_and_does_not_execute(self):
+        self.enqueue()
+
+    def test_task_states_and_results(self):
+        task_id = self.enqueue()
+        for state, expected in [("PENDING", "pending"), ("STARTED", "started"), ("RETRY", "pending"),
+                                ("SUCCESS", "success"), ("FAILURE", "failure")]:
+            with self.subTest(state=state), patch.object(main.celery_app, "AsyncResult",
+                    return_value=SimpleNamespace(state=state, result={"updated": 1} if state == "SUCCESS" else ValueError("failed"))):
+                response = self.client.get(f"/tasks/{task_id}", headers=self.auth)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["status"], expected)
+                self.assertEqual(response.json()["result"], {"updated": 1} if state == "SUCCESS" else None)
+                self.assertEqual(response.json()["error"], "failed" if state == "FAILURE" else None)
+
+    def test_async_routes_require_auth_and_validate_input(self):
+        self.assertEqual(self.client.post("/menu/imports", json={"items": []}).status_code, 401)
+        self.assertEqual(self.client.post("/menu/imports", headers=self.auth, json={"items": []}).status_code, 422)
+        self.assertEqual(self.client.get("/tasks/dead-letter").status_code, 401)
+        self.assertEqual(self.client.get(f"/tasks/{uuid4()}", headers=self.auth).status_code, 404)
+        self.assertEqual(self.client.get("/tasks/invalid", headers=self.auth).status_code, 422)
+
+    def test_broker_failure_does_not_return_accepted(self):
+        with patch.object(main.import_menu, "apply_async", side_effect=OperationalError("offline")):
+            response = self.client.post("/menu/imports", headers=self.auth,
+                json={"items": [{"id": "demo-co", "name": "Imported", "country": "CO", "price": 19}]})
+        self.assertEqual(response.status_code, 503)
+
+    def test_worker_retries_with_exponential_countdown_then_dlq(self):
+        task_id = str(uuid4())
+        main.storage.create_batch(task_id, {"items": [
+            {"id": "missing", "name": "Invalid", "country": "CO", "price": 1}]})
+        task = main.import_menu
+        for retries in range(3):
+            task.push_request(id=task_id, retries=retries)
+            try:
+                with patch.object(task, "retry", side_effect=Retry()) as retry:
+                    with self.assertRaises(Retry):
+                        task.run(task_id)
+                self.assertEqual(retry.call_args.kwargs["countdown"], 2 ** (retries + 1))
+                self.assertEqual(main.storage.get_dead_letters(), [])
+            finally:
+                task.pop_request()
+        task.push_request(id=task_id, retries=3)
+        try:
+            with self.assertRaises(ValueError) as error:
+                task.run(task_id)
+            task.on_failure(error.exception, task_id, [task_id], {}, None)
+        finally:
+            task.pop_request()
+        failure = self.client.get("/tasks/dead-letter", headers=self.auth).json()[0]
+        self.assertEqual(failure["task_id"], task_id)
+        self.assertEqual(failure["attempt"], 4)
+        self.assertIn("Item not found", failure["error"])
+
+    def test_worker_commits_once_on_redelivery(self):
+        task_id = self.enqueue()
+        main.import_menu.push_request(id=task_id, retries=0)
+        try:
+            self.assertEqual(main.import_menu.run(task_id), {"updated": 1})
+            self.assertEqual(main.import_menu.run(task_id), {"updated": 1})
+        finally:
+            main.import_menu.pop_request()
+        self.assertEqual(main.storage.catalog_snapshot()[0], {"menu": 1})
+        self.assertTrue(any(row["name"] == "Imported" for row in self.client.get("/menu").json()))
+
+    def test_batch_is_atomic_if_one_item_is_unknown(self):
+        with self.assertRaises(ValueError):
+            self.catalog.update_many("menu", [
+                {"id": "demo-co", "name": "Do not save", "country": "CO", "price": 1},
+                {"id": "missing", "name": "Invalid", "country": "CO", "price": 1}])
+        self.assertEqual(main.storage.catalog_snapshot(), ({}, []))
 
 
 if __name__ == "__main__":
